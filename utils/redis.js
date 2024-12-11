@@ -1,14 +1,14 @@
 #!/usr/bin/node
 
-const redis = require('redis');
+const { createClient } = require('redis');
 const { promisify } = require('util');
 
-class RedisHandler {
+class CacheClient {
   constructor() {
-    this.connection = redis.createClient();
-    this.connection.on('error', (err) => console.error('Redis Error:', err));
+    this.redisClient = createClient();
+    this.redisClient.on('error', (error) => console.error(error));
     this.isConnected = false;
-    this.connection.on('connect', () => {
+    this.redisClient.on('connect', () => {
       this.isConnected = true;
     });
   }
@@ -18,34 +18,22 @@ class RedisHandler {
   }
 
   async fetch(key) {
-    const asyncGet = promisify(this.connection.get).bind(this.connection);
-    try {
-      return await asyncGet(key);
-    } catch (err) {
-      console.error('Fetch Error:', err);
-      return null;
-    }
+    const asyncGet = promisify(this.redisClient.get).bind(this.redisClient);
+    const value = await asyncGet(key);
+    return value;
   }
 
-  async store(key, value, expiry) {
-    const asyncSet = promisify(this.connection.set).bind(this.connection);
-    try {
-      await asyncSet(key, value, 'EX', expiry);
-    } catch (err) {
-      console.error('Store Error:', err);
-    }
+  async store(key, value, duration) {
+    const asyncSet = promisify(this.redisClient.set).bind(this.redisClient);
+    await asyncSet(key, value, 'EX', duration);
   }
 
   async remove(key) {
-    const asyncDel = promisify(this.connection.del).bind(this.connection);
-    try {
-      await asyncDel(key);
-    } catch (err) {
-      console.error('Remove Error:', err);
-    }
+    const asyncDel = promisify(this.redisClient.del).bind(this.redisClient);
+    await asyncDel(key);
   }
 }
 
-const redisHandlerInstance = new RedisHandler();
+const cacheClient = new CacheClient();
 
-module.exports = redisHandlerInstance;
+module.exports = cacheClient;
