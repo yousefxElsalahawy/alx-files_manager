@@ -1,41 +1,63 @@
-#!/usr/bin/node
+// utils/redis.js
 
-const { createClient } = require('redis');
-const { promisify } = require('util');
+import { createClient } from 'redis';
+import { promisify } from 'util';
 
-class CacheClient {
-  constructor() {
-    this.redisClient = createClient();
-    this.isConnected = false;
+class RedisClient {
+    #client;
+    #isConnected;
 
-    // Handle connection events
-    this.redisClient.on('error', (error) => console.error(error));
-    this.redisClient.on('connect', () => {
-      this.isConnected = true;
-    });
-  }
+    constructor() {
+        this.#client = createClient();
+        this.#isConnected = false;
 
-  isAlive() {
-    return this.isConnected;
-  }
+        // Handle connection errors
+        this.#client.on('error', (error) => {
+            console.error(`Redis Client Error: ${error.message}`);
+        });
 
-  async getValue(key) {
-    const asyncGet = promisify(this.redisClient.get).bind(this.redisClient);
-    const value = await asyncGet(key);
-    return value;
-  }
+        // Set connection state
+        this.#client.on('connect', () => {
+            this.#isConnected = true;
+        });
+    }
 
-  async setValue(key, value, duration) {
-    const asyncSet = promisify(this.redisClient.set).bind(this.redisClient);
-    await asyncSet(key, value, 'EX', duration);
-  }
+    // Check connection status
+    isAlive() {
+        return this.#isConnected;
+    }
 
-  async deleteValue(key) {
-    const asyncDelete = promisify(this.redisClient.del).bind(this.redisClient);
-    await asyncDelete(key);
-  }
+    // Retrieve a value by key
+    async getValue(key) {
+        const asyncGet = promisify(this.#client.get).bind(this.#client);
+        try {
+            return await asyncGet(key);
+        } catch (error) {
+            console.error(`Error fetching key ${key}: ${error.message}`);
+            return null;
+        }
+    }
+
+    // Set a key with a value and expiration time
+    async setValue(key, value, ttl) {
+        const asyncSet = promisify(this.#client.set).bind(this.#client);
+        try {
+            await asyncSet(key, value, 'EX', ttl);
+        } catch (error) {
+            console.error(`Error setting key ${key}: ${error.message}`);
+        }
+    }
+
+    // Delete a key
+    async deleteKey(key) {
+        const asyncDel = promisify(this.#client.del).bind(this.#client);
+        try {
+            await asyncDel(key);
+        } catch (error) {
+            console.error(`Error deleting key ${key}: ${error.message}`);
+        }
+    }
 }
 
-const cacheClient = new CacheClient();
-
-module.exports = cacheClient;
+const redisClient = new RedisClient();
+export default redisClient;
